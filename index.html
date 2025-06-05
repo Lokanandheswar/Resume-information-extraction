@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Resume Information Extractor</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #333;
+        }
+        .container {
+            max-width: 90%;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .info-item {
+            margin-bottom: 0.75rem;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #4b5563;
+        }
+        .info-value {
+            color: #1f2937;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #6366f1;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .error-message {
+            background-color: #fee2e2;
+            color: #dc2626;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            border: 1px solid #ef4444;
+        }
+        .success-message {
+            background-color: #d1fae5;
+            color: #065f46;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            border: 1px solid #10b981;
+        }
+        .btn-primary {
+            background-color: #6366f1;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #4f46e5;
+        }
+        .file-input-label {
+            display: inline-block;
+            background-color: #e0e7ff;
+            color: #4f46e5;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            border: 1px solid #a5b4fc;
+        }
+        .file-input-label:hover {
+            background-color: #c7d2fe;
+        }
+        .resume-text-area {
+            width: 100%;
+            min-height: 200px;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db;
+            resize: vertical;
+            font-family: monospace;
+            background-color: #f9fafb;
+            color: #1f2937;
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container">
+        <h1 class="text-3xl font-extrabold text-center text-gray-900 mb-6">AI Resume Information Extractor</h1>
+
+        <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
+            <p class="font-semibold mb-2">Instructions:</p>
+            <ul class="list-disc list-inside space-y-1">
+                <li>Upload a resume file (preferably a plain text file for best results).</li>
+                <li>Click "Extract Information" to process the resume using AI.</li>
+                <li>For PDF/DOCX files, the system will attempt to read the text, but formatting might be lost, affecting extraction accuracy.</li>
+            </ul>
+        </div>
+
+        <div class="flex flex-col md:flex-row gap-6">
+            <!-- Left Panel: Upload and Raw Text -->
+            <div class="md:w-1/2 bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
+                <h2 class="section-title mb-4">Upload Resume</h2>
+                <div class="mb-4">
+                    <input type="file" id="resumeFileInput" accept=".txt,.pdf,.docx" class="hidden" />
+                    <label for="resumeFileInput" class="file-input-label">Choose File</label>
+                    <span id="fileNameDisplay" class="ml-3 text-gray-600">No file chosen</span>
+                </div>
+
+                <div class="mb-6">
+                    <label for="resumeText" class="block text-sm font-medium text-gray-700 mb-2">Raw Resume Text (Editable)</label>
+                    <textarea id="resumeText" class="resume-text-area" placeholder="Paste your resume text here or upload a file."></textarea>
+                </div>
+
+                <button id="extractButton" class="btn-primary w-full flex items-center justify-center gap-2">
+                    <span id="buttonText">Extract Information</span>
+                    <div id="loadingSpinner" class="loading-spinner hidden"></div>
+                </button>
+
+                <div id="messageBox" class="mt-4 hidden"></div>
+            </div>
+
+            <!-- Right Panel: Extracted Information -->
+            <div class="md:w-1/2 bg-white p-6 rounded-lg shadow-lg border border-gray-200">
+                <h2 class="section-title mb-4">Extracted Information</h2>
+                <div id="extractedInfoDisplay" class="space-y-4">
+                    <p class="text-gray-500 text-center">Upload a resume and click "Extract Information" to see results.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Global variables for Firebase (if needed, but not used in this specific AI extraction example)
+        // const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+
+        const resumeFileInput = document.getElementById('resumeFileInput');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const resumeTextarea = document.getElementById('resumeText');
+        const extractButton = document.getElementById('extractButton');
+        const buttonText = document.getElementById('buttonText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const messageBox = document.getElementById('messageBox');
+        const extractedInfoDisplay = document.getElementById('extractedInfoDisplay');
+
+        // Event listener for file input change
+        resumeFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                fileNameDisplay.textContent = file.name;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    resumeTextarea.value = e.target.result;
+                    displayMessage('File loaded successfully. Click "Extract Information" to process.', 'success');
+                };
+                reader.onerror = () => {
+                    displayMessage('Error reading file.', 'error');
+                };
+                reader.readAsText(file);
+            } else {
+                fileNameDisplay.textContent = 'No file chosen';
+                resumeTextarea.value = '';
+            }
+        });
+
+        // Event listener for extract button click
+        extractButton.addEventListener('click', async () => {
+            const resumeContent = resumeTextarea.value.trim();
+            if (!resumeContent) {
+                displayMessage('Please upload a resume or paste text into the box.', 'error');
+                return;
+            }
+
+            setLoading(true);
+            displayMessage('', ''); // Clear previous messages
+            extractedInfoDisplay.innerHTML = '<p class="text-gray-500 text-center">Extracting information...</p>';
+
+            try {
+                // Call the Gemini API to extract structured information
+                const extractedData = await extractInfoWithAI(resumeContent);
+                displayExtractedInfo(extractedData);
+                displayMessage('Information extracted successfully!', 'success');
+            } catch (error) {
+                console.error('Error during AI extraction:', error);
+                displayMessage(`Error extracting information: ${error.message}. Please try again.`, 'error');
+                extractedInfoDisplay.innerHTML = '<p class="text-gray-500 text-center text-red-500">Failed to extract information.</p>';
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        /**
+         * Calls the Gemini API to extract structured information from the resume text.
+         * @param {string} resumeText - The raw text content of the resume.
+         * @returns {Promise<Object>} - A promise that resolves with the extracted JSON object.
+         */
+        async function extractInfoWithAI(resumeText) {
+            const prompt = `Extract the following information from the resume text provided below. If a field is not found, return an empty string or an empty array as appropriate. Ensure the output is strictly in JSON format according to the provided schema.
+
+Resume Text:
+"""
+${resumeText}
+"""
+
+Extract:
+- Name
+- Email
+- Phone
+- Summary (a brief overview of the candidate)
+- Skills (list of individual skills)
+- Work Experience (company, title, dates, and a brief description of responsibilities/achievements for each role)
+- Education (degree, university, and dates for each entry)
+- Projects (title and description for each project)
+- Certifications (list of certification names)
+- Languages (list of languages spoken)
+`;
+
+            const chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+            const payload = {
+                contents: chatHistory,
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "name": { "type": "STRING" },
+                            "email": { "type": "STRING" },
+                            "phone": { "type": "STRING" },
+                            "summary": { "type": "STRING" },
+                            "skills": {
+                                "type": "ARRAY",
+                                "items": { "type": "STRING" }
+                            },
+                            "workExperience": {
+                                "type": "ARRAY",
+                                "items": {
+                                    "type": "OBJECT",
+                                    "properties": {
+                                        "company": { "type": "STRING" },
+                                        "title": { "type": "STRING" },
+                                        "dates": { "type": "STRING" },
+                                        "description": { "type": "STRING" }
+                                    },
+                                    "required": ["company", "title"] // Minimal required fields for a work experience entry
+                                }
+                            },
+                            "education": {
+                                "type": "ARRAY",
+                                "items": {
+                                    "type": "OBJECT",
+                                    "properties": {
+                                        "degree": { "type": "STRING" },
+                                        "university": { "type": "STRING" },
+                                        "dates": { "type": "STRING" }
+                                    },
+                                    "required": ["degree", "university"] // Minimal required fields for an education entry
+                                }
+                            },
+                            "projects": {
+                                "type": "ARRAY",
+                                "items": {
+                                    "type": "OBJECT",
+                                    "properties": {
+                                        "title": { "type": "STRING" },
+                                        "description": { "type": "STRING" }
+                                    },
+                                    "required": ["title"] // Minimal required field for a project entry
+                                }
+                            },
+                            "certifications": {
+                                "type": "ARRAY",
+                                "items": { "type": "STRING" }
+                            },
+                            "languages": {
+                                "type": "ARRAY",
+                                "items": { "type": "STRING" }
+                            }
+                        },
+                        "propertyOrdering": [
+                            "name", "email", "phone", "summary", "skills",
+                            "workExperience", "education", "projects",
+                            "certifications", "languages"
+                        ]
+                    }
+                }
+            };
+
+            const apiKey = ""; // Canvas will automatically provide this at runtime
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
+            }
+
+            const result = await response.json();
+
+            if (result.candidates && result.candidates.length > 0 &&
+                result.candidates[0].content && result.candidates[0].content.parts &&
+                result.candidates[0].content.parts.length > 0) {
+                const jsonString = result.candidates[0].content.parts[0].text;
+                try {
+                    return JSON.parse(jsonString);
+                } catch (parseError) {
+                    console.error("Failed to parse JSON from LLM response:", jsonString, parseError);
+                    throw new Error("Invalid JSON response from AI model.");
+                }
+            } else {
+                throw new Error("No valid content received from AI model.");
+            }
+        }
+
+        /**
+         * Displays the extracted information in the UI.
+         * @param {Object} data - The extracted data object.
+         */
+        function displayExtractedInfo(data) {
+            let html = '';
+
+            // Helper function to create a section
+            const createSection = (title, content) => {
+                if (content) {
+                    return `
+                        <div class="mb-6">
+                            <h3 class="section-title">${title}</h3>
+                            <div class="text-gray-700">${content}</div>
+                        </div>
+                    `;
+                }
+                return '';
+            };
+
+            // Personal Info
+            let personalInfoHtml = '';
+            if (data.name) personalInfoHtml += `<div class="info-item"><span class="info-label">Name:</span> <span class="info-value">${data.name}</span></div>`;
+            if (data.email) personalInfoHtml += `<div class="info-item"><span class="info-label">Email:</span> <span class="info-value">${data.email}</span></div>`;
+            if (data.phone) personalInfoHtml += `<div class="info-item"><span class="info-label">Phone:</span> <span class="info-value">${data.phone}</span></div>`;
+            html += createSection('Personal Information', personalInfoHtml);
+
+            // Summary
+            html += createSection('Summary', data.summary || 'N/A');
+
+            // Skills
+            if (data.skills && data.skills.length > 0) {
+                const skillsHtml = `<ul class="list-disc list-inside space-y-1">${data.skills.map(skill => `<li>${skill}</li>`).join('')}</ul>`;
+                html += createSection('Skills', skillsHtml);
+            } else {
+                html += createSection('Skills', 'N/A');
+            }
+
+            // Work Experience
+            if (data.workExperience && data.workExperience.length > 0) {
+                let experienceHtml = '';
+                data.workExperience.forEach(exp => {
+                    experienceHtml += `
+                        <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <p class="font-semibold text-lg text-indigo-700">${exp.title || 'N/A'} at ${exp.company || 'N/A'}</p>
+                            <p class="text-sm text-gray-600 mb-1">${exp.dates || 'N/A'}</p>
+                            <p class="text-gray-700">${exp.description || 'N/A'}</p>
+                        </div>
+                    `;
+                });
+                html += createSection('Work Experience', experienceHtml);
+            } else {
+                html += createSection('Work Experience', 'N/A');
+            }
+
+            // Education
+            if (data.education && data.education.length > 0) {
+                let educationHtml = '';
+                data.education.forEach(edu => {
+                    educationHtml += `
+                        <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <p class="font-semibold text-lg text-indigo-700">${edu.degree || 'N/A'}</p>
+                            <p class="text-sm text-gray-600 mb-1">${edu.university || 'N/A'}</p>
+                            <p class="text-sm text-gray-600">${edu.dates || 'N/A'}</p>
+                        </div>
+                    `;
+                });
+                html += createSection('Education', educationHtml);
+            } else {
+                html += createSection('Education', 'N/A');
+            }
+
+            // Projects
+            if (data.projects && data.projects.length > 0) {
+                let projectsHtml = '';
+                data.projects.forEach(proj => {
+                    projectsHtml += `
+                        <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <p class="font-semibold text-lg text-indigo-700">${proj.title || 'N/A'}</p>
+                            <p class="text-gray-700">${proj.description || 'N/A'}</p>
+                        </div>
+                    `;
+                });
+                html += createSection('Projects', projectsHtml);
+            } else {
+                html += createSection('Projects', 'N/A');
+            }
+
+            // Certifications
+            if (data.certifications && data.certifications.length > 0) {
+                const certsHtml = `<ul class="list-disc list-inside space-y-1">${data.certifications.map(cert => `<li>${cert}</li>`).join('')}</ul>`;
+                html += createSection('Certifications', certsHtml);
+            } else {
+                html += createSection('Certifications', 'N/A');
+            }
+
+            // Languages
+            if (data.languages && data.languages.length > 0) {
+                const langsHtml = `<ul class="list-disc list-inside space-y-1">${data.languages.map(lang => `<li>${lang}</li>`).join('')}</ul>`;
+                html += createSection('Languages', langsHtml);
+            } else {
+                html += createSection('Languages', 'N/A');
+            }
+
+            extractedInfoDisplay.innerHTML = html || '<p class="text-gray-500 text-center">No information extracted or all fields were empty.</p>';
+        }
+
+        /**
+         * Sets the loading state of the button.
+         * @param {boolean} isLoading - True to show loading, false to hide.
+         */
+        function setLoading(isLoading) {
+            extractButton.disabled = isLoading;
+            if (isLoading) {
+                buttonText.textContent = 'Extracting...';
+                loadingSpinner.classList.remove('hidden');
+            } else {
+                buttonText.textContent = 'Extract Information';
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Displays a message in the message box.
+         * @param {string} message - The message to display.
+         * @param {'success'|'error'|''} type - The type of message (for styling).
+         */
+        function displayMessage(message, type) {
+            messageBox.textContent = message;
+            messageBox.className = 'mt-4'; // Reset classes
+            if (message) {
+                messageBox.classList.remove('hidden');
+                if (type === 'success') {
+                    messageBox.classList.add('success-message');
+                } else if (type === 'error') {
+                    messageBox.classList.add('error-message');
+                }
+            } else {
+                messageBox.classList.add('hidden');
+            }
+        }
+
+        // Initial state: clear display
+        extractedInfoDisplay.innerHTML = '<p class="text-gray-500 text-center">Upload a resume and click "Extract Information" to see results.</p>';
+    </script>
+</body>
+</html>
